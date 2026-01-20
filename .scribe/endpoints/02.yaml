@@ -1,0 +1,473 @@
+name: 'Account Management'
+description: |-
+
+  APIs for managing accounts and transactions
+endpoints:
+  -
+    custom: []
+    httpMethods:
+      - GET
+    uri: api/accounts
+    metadata:
+      custom: []
+      groupName: 'Account Management'
+      groupDescription: |-
+
+        APIs for managing accounts and transactions
+      subgroup: ''
+      subgroupDescription: ''
+      title: 'List all accounts'
+      description: 'Get a paginated list of all accounts.'
+      authenticated: false
+      deprecated: false
+    headers:
+      Content-Type: application/json
+      Accept: application/json
+    urlParameters: []
+    cleanUrlParameters: []
+    queryParameters:
+      page:
+        custom: []
+        name: page
+        description: 'Page number.'
+        required: false
+        example: 1
+        type: integer
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+      per_page:
+        custom: []
+        name: per_page
+        description: 'Items per page (max 100).'
+        required: false
+        example: 25
+        type: integer
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+    cleanQueryParameters:
+      page: 1
+      per_page: 25
+    bodyParameters: []
+    cleanBodyParameters: []
+    fileParameters: []
+    responses:
+      -
+        custom: []
+        status: 200
+        content: |-
+          {
+            "data": [
+              {
+                "account_number": "1234567890",
+                "branch": "Head Office",
+                "balance": "50,000.00",
+                "status": "Active"
+              }
+            ]
+          }
+        headers: []
+        description: ''
+    responseFields: []
+    auth: []
+    controller: null
+    method: null
+    route: null
+  -
+    custom: []
+    httpMethods:
+      - GET
+    uri: api/accounts/search
+    metadata:
+      custom: []
+      groupName: 'Account Management'
+      groupDescription: |-
+
+        APIs for managing accounts and transactions
+      subgroup: ''
+      subgroupDescription: ''
+      title: 'Search accounts'
+      description: 'Search and filter accounts by various criteria.'
+      authenticated: false
+      deprecated: false
+    headers:
+      Content-Type: application/json
+      Accept: application/json
+    urlParameters: []
+    cleanUrlParameters: []
+    queryParameters:
+      account_number:
+        custom: []
+        name: account_number
+        description: 'Search by account number.'
+        required: false
+        example: '1234567890'
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+      customer_id:
+        custom: []
+        name: customer_id
+        description: 'Filter by customer ID.'
+        required: false
+        example: '000123'
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+      branch:
+        custom: []
+        name: branch
+        description: 'Filter by branch name.'
+        required: false
+        example: 'Head Office'
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+      status:
+        custom: []
+        name: status
+        description: 'Filter by status (1=Active, 2=Closed, 3=Dormant, 4=Frozen).'
+        required: false
+        example: 1
+        type: integer
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+      per_page:
+        custom: []
+        name: per_page
+        description: 'Items per page (max 100).'
+        required: false
+        example: 25
+        type: integer
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+    cleanQueryParameters:
+      account_number: '1234567890'
+      customer_id: '000123'
+      branch: 'Head Office'
+      status: 1
+      per_page: 25
+    bodyParameters: []
+    cleanBodyParameters: []
+    fileParameters: []
+    responses:
+      -
+        custom: []
+        status: 200
+        content: |-
+          {
+            "data": []
+          }
+        headers: []
+        description: ''
+    responseFields: []
+    auth: []
+    controller: null
+    method: null
+    route: null
+  -
+    custom: []
+    httpMethods:
+      - GET
+    uri: 'api/accounts/{accountNumber}'
+    metadata:
+      custom: []
+      groupName: 'Account Management'
+      groupDescription: |-
+
+        APIs for managing accounts and transactions
+      subgroup: ''
+      subgroupDescription: ''
+      title: 'Get single account'
+      description: 'Retrieve detailed information about a specific account.'
+      authenticated: false
+      deprecated: false
+    headers:
+      Content-Type: application/json
+      Accept: application/json
+    urlParameters:
+      accountNumber:
+        custom: []
+        name: accountNumber
+        description: 'The account number.'
+        required: true
+        example: '1234567890'
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+    cleanUrlParameters:
+      accountNumber: '1234567890'
+    queryParameters: []
+    cleanQueryParameters: []
+    bodyParameters: []
+    cleanBodyParameters: []
+    fileParameters: []
+    responses:
+      -
+        custom: []
+        status: 200
+        content: |-
+          {
+            "data": {
+              "account_number": "1234567890",
+              "branch": "Head Office",
+              "balance": "50,000.00",
+              "status": "Active",
+              "transaction_count": 150
+            }
+          }
+        headers: []
+        description: ''
+      -
+        custom: []
+        status: 404
+        content: |-
+          {
+            "message": "No query results for model [App\\Models\\SavingsAndCurrentAccount]."
+          }
+        headers: []
+        description: ''
+    responseFields: []
+    auth: []
+    controller: null
+    method: null
+    route: null
+  -
+    custom: []
+    httpMethods:
+      - GET
+    uri: 'api/accounts/{accountNumber}/transactions'
+    metadata:
+      custom: []
+      groupName: 'Account Management'
+      groupDescription: |-
+
+        APIs for managing accounts and transactions
+      subgroup: ''
+      subgroupDescription: ''
+      title: 'Get account transactions'
+      description: 'Get all transactions for a specific account.'
+      authenticated: false
+      deprecated: false
+    headers:
+      Content-Type: application/json
+      Accept: application/json
+    urlParameters:
+      accountNumber:
+        custom: []
+        name: accountNumber
+        description: 'The account number.'
+        required: true
+        example: '1234567890'
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+    cleanUrlParameters:
+      accountNumber: '1234567890'
+    queryParameters:
+      start_date:
+        custom: []
+        name: start_date
+        description: 'date Filter from this date (Y-m-d).'
+        required: false
+        example: '2024-01-01'
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+      end_date:
+        custom: []
+        name: end_date
+        description: 'date Filter to this date (Y-m-d).'
+        required: false
+        example: '2024-12-31'
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+      per_page:
+        custom: []
+        name: per_page
+        description: 'Items per page (max 100).'
+        required: false
+        example: 50
+        type: integer
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+    cleanQueryParameters:
+      start_date: '2024-01-01'
+      end_date: '2024-12-31'
+      per_page: 50
+    bodyParameters: []
+    cleanBodyParameters: []
+    fileParameters: []
+    responses:
+      -
+        custom: []
+        status: 200
+        content: |-
+          {
+            "data": [
+              {
+                "transaction_date": "2024-01-15 10:30:00",
+                "narration": "Transfer",
+                "debit": "5,000.00",
+                "credit": "0.00"
+              }
+            ]
+          }
+        headers: []
+        description: ''
+    responseFields: []
+    auth: []
+    controller: null
+    method: null
+    route: null
+  -
+    custom: []
+    httpMethods:
+      - GET
+    uri: 'api/accounts/{accountNumber}/statement'
+    metadata:
+      custom: []
+      groupName: 'Account Management'
+      groupDescription: |-
+
+        APIs for managing accounts and transactions
+      subgroup: ''
+      subgroupDescription: ''
+      title: 'Get account statement'
+      description: 'Generate a statement of account for a specific period.'
+      authenticated: false
+      deprecated: false
+    headers:
+      Content-Type: application/json
+      Accept: application/json
+    urlParameters:
+      accountNumber:
+        custom: []
+        name: accountNumber
+        description: 'The account number.'
+        required: true
+        example: '1234567890'
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+    cleanUrlParameters:
+      accountNumber: '1234567890'
+    queryParameters:
+      start_date:
+        custom: []
+        name: start_date
+        description: 'date Statement start date (Y-m-d).'
+        required: true
+        example: '2024-01-01'
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+      end_date:
+        custom: []
+        name: end_date
+        description: 'date Statement end date (Y-m-d).'
+        required: true
+        example: '2024-12-31'
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+    cleanQueryParameters:
+      start_date: '2024-01-01'
+      end_date: '2024-12-31'
+    bodyParameters:
+      start_date:
+        custom: []
+        name: start_date
+        description: 'Must be a valid date.'
+        required: true
+        example: '2026-01-18T13:19:49'
+        type: string
+        enumValues: []
+        exampleWasSpecified: false
+        nullable: false
+        deprecated: false
+      end_date:
+        custom: []
+        name: end_date
+        description: 'Must be a valid date. Must be a date after or equal to <code>start_date</code>.'
+        required: true
+        example: '2052-02-11'
+        type: string
+        enumValues: []
+        exampleWasSpecified: false
+        nullable: false
+        deprecated: false
+    cleanBodyParameters:
+      start_date: '2026-01-18T13:19:49'
+      end_date: '2052-02-11'
+    fileParameters: []
+    responses:
+      -
+        custom: []
+        status: 200
+        content: |-
+          {
+            "account": {
+              "account_number": "1234567890",
+              "balance": "50,000.00"
+            },
+            "period": {
+              "start_date": "2024-01-01",
+              "end_date": "2024-12-31"
+            },
+            "summary": {
+              "opening_balance": "25,000.00",
+              "total_debit": "100,000.00",
+              "total_credit": "125,000.00",
+              "closing_balance": "50,000.00",
+              "transaction_count": 150
+            },
+            "transactions": []
+          }
+        headers: []
+        description: ''
+      -
+        custom: []
+        status: 422
+        content: |-
+          {
+            "message": "The start date field is required.",
+            "errors": {}
+          }
+        headers: []
+        description: ''
+    responseFields: []
+    auth: []
+    controller: null
+    method: null
+    route: null

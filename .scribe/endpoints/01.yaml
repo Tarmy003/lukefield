@@ -1,0 +1,463 @@
+name: 'Customer Management'
+description: |-
+
+  APIs for managing customers and their accounts
+endpoints:
+  -
+    custom: []
+    httpMethods:
+      - GET
+    uri: api/customers
+    metadata:
+      custom: []
+      groupName: 'Customer Management'
+      groupDescription: |-
+
+        APIs for managing customers and their accounts
+      subgroup: ''
+      subgroupDescription: ''
+      title: 'List all customers'
+      description: 'Get a paginated list of all customers in the system.'
+      authenticated: false
+      deprecated: false
+    headers:
+      Content-Type: application/json
+      Accept: application/json
+    urlParameters: []
+    cleanUrlParameters: []
+    queryParameters:
+      page:
+        custom: []
+        name: page
+        description: 'Page number for pagination.'
+        required: false
+        example: 1
+        type: integer
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+      per_page:
+        custom: []
+        name: per_page
+        description: 'Number of items per page (max 100).'
+        required: false
+        example: 25
+        type: integer
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+    cleanQueryParameters:
+      page: 1
+      per_page: 25
+    bodyParameters: []
+    cleanBodyParameters: []
+    fileParameters: []
+    responses:
+      -
+        custom: []
+        status: 200
+        content: |-
+          {
+            "data": [
+              {
+                "id": 1,
+                "customer_id": "123456",
+                "full_name": "Mr John Doe",
+                "first_name": "John",
+                "surname": "Doe",
+                "email": "john@example.com",
+                "mobile_phone": "08012345678",
+                "status": "Active"
+              }
+            ],
+            "links": {},
+            "meta": {}
+          }
+        headers: []
+        description: ''
+    responseFields: []
+    auth: []
+    controller: null
+    method: null
+    route: null
+  -
+    custom: []
+    httpMethods:
+      - GET
+    uri: api/customers/search
+    metadata:
+      custom: []
+      groupName: 'Customer Management'
+      groupDescription: |-
+
+        APIs for managing customers and their accounts
+      subgroup: ''
+      subgroupDescription: ''
+      title: 'Search customers'
+      description: 'Search and filter customers by various criteria.'
+      authenticated: false
+      deprecated: false
+    headers:
+      Content-Type: application/json
+      Accept: application/json
+    urlParameters: []
+    cleanUrlParameters: []
+    queryParameters:
+      customer_name:
+        custom: []
+        name: customer_name
+        description: 'Search by customer name.'
+        required: false
+        example: John
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+      customer_id:
+        custom: []
+        name: customer_id
+        description: 'Search by customer ID.'
+        required: false
+        example: '123456'
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+      email:
+        custom: []
+        name: email
+        description: 'Search by email address.'
+        required: false
+        example: john@example.com
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+      phone:
+        custom: []
+        name: phone
+        description: 'Search by phone number.'
+        required: false
+        example: '08012345678'
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+      bvn:
+        custom: []
+        name: bvn
+        description: 'Search by BVN.'
+        required: false
+        example: '12345678901'
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+      status:
+        custom: []
+        name: status
+        description: 'Filter by status.'
+        required: false
+        example: Active
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+      pep:
+        custom: []
+        name: pep
+        description: 'Filter by PEP status (YES/NO).'
+        required: false
+        example: 'NO'
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+      per_page:
+        custom: []
+        name: per_page
+        description: 'Items per page (max 100).'
+        required: false
+        example: 25
+        type: integer
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+    cleanQueryParameters:
+      customer_name: John
+      customer_id: '123456'
+      email: john@example.com
+      phone: '08012345678'
+      bvn: '12345678901'
+      status: Active
+      pep: 'NO'
+      per_page: 25
+    bodyParameters: []
+    cleanBodyParameters: []
+    fileParameters: []
+    responses:
+      -
+        custom: []
+        status: 200
+        content: |-
+          {
+            "data": [
+              {
+                "id": 1,
+                "customer_id": "123456",
+                "full_name": "Mr John Doe",
+                "email": "john@example.com"
+              }
+            ]
+          }
+        headers: []
+        description: ''
+    responseFields: []
+    auth: []
+    controller: null
+    method: null
+    route: null
+  -
+    custom: []
+    httpMethods:
+      - GET
+    uri: 'api/customers/{id}'
+    metadata:
+      custom: []
+      groupName: 'Customer Management'
+      groupDescription: |-
+
+        APIs for managing customers and their accounts
+      subgroup: ''
+      subgroupDescription: ''
+      title: 'Get single customer'
+      description: 'Retrieve detailed information about a specific customer.'
+      authenticated: false
+      deprecated: false
+    headers:
+      Content-Type: application/json
+      Accept: application/json
+    urlParameters:
+      id:
+        custom: []
+        name: id
+        description: 'The customer ID.'
+        required: true
+        example: 1
+        type: integer
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+    cleanUrlParameters:
+      id: 1
+    queryParameters: []
+    cleanQueryParameters: []
+    bodyParameters: []
+    cleanBodyParameters: []
+    fileParameters: []
+    responses:
+      -
+        custom: []
+        status: 200
+        content: |-
+          {
+            "data": {
+              "id": 1,
+              "customer_id": "123456",
+              "full_name": "Mr John Doe",
+              "first_name": "John",
+              "surname": "Doe",
+              "email": "john@example.com",
+              "mobile_phone": "08012345678",
+              "status": "Active",
+              "bvn": "12345678901"
+            }
+          }
+        headers: []
+        description: ''
+      -
+        custom: []
+        status: 404
+        content: |-
+          {
+            "message": "No query results for model [App\\Models\\Customer]."
+          }
+        headers: []
+        description: ''
+    responseFields: []
+    auth: []
+    controller: null
+    method: null
+    route: null
+  -
+    custom: []
+    httpMethods:
+      - GET
+    uri: 'api/customers/{id}/accounts'
+    metadata:
+      custom: []
+      groupName: 'Customer Management'
+      groupDescription: |-
+
+        APIs for managing customers and their accounts
+      subgroup: ''
+      subgroupDescription: ''
+      title: "Get customer's accounts"
+      description: 'Get all accounts belonging to a specific customer.'
+      authenticated: false
+      deprecated: false
+    headers:
+      Content-Type: application/json
+      Accept: application/json
+    urlParameters:
+      id:
+        custom: []
+        name: id
+        description: 'The customer ID.'
+        required: true
+        example: 1
+        type: integer
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+    cleanUrlParameters:
+      id: 1
+    queryParameters: []
+    cleanQueryParameters: []
+    bodyParameters: []
+    cleanBodyParameters: []
+    fileParameters: []
+    responses:
+      -
+        custom: []
+        status: 200
+        content: |-
+          {
+            "data": [
+              {
+                "id": 1,
+                "account_number": "1234567890",
+                "branch": "Head Office",
+                "balance": "50,000.00",
+                "status": "Active"
+              }
+            ]
+          }
+        headers: []
+        description: ''
+    responseFields: []
+    auth: []
+    controller: null
+    method: null
+    route: null
+  -
+    custom: []
+    httpMethods:
+      - GET
+    uri: 'api/customers/{id}/transactions'
+    metadata:
+      custom: []
+      groupName: 'Customer Management'
+      groupDescription: |-
+
+        APIs for managing customers and their accounts
+      subgroup: ''
+      subgroupDescription: ''
+      title: "Get customer's transactions"
+      description: 'Get all transactions across all accounts for a specific customer.'
+      authenticated: false
+      deprecated: false
+    headers:
+      Content-Type: application/json
+      Accept: application/json
+    urlParameters:
+      id:
+        custom: []
+        name: id
+        description: 'The customer ID.'
+        required: true
+        example: 1
+        type: integer
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+    cleanUrlParameters:
+      id: 1
+    queryParameters:
+      start_date:
+        custom: []
+        name: start_date
+        description: 'date Filter transactions from this date (Y-m-d).'
+        required: false
+        example: '2024-01-01'
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+      end_date:
+        custom: []
+        name: end_date
+        description: 'date Filter transactions up to this date (Y-m-d).'
+        required: false
+        example: '2024-12-31'
+        type: string
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+      per_page:
+        custom: []
+        name: per_page
+        description: 'Items per page (max 100).'
+        required: false
+        example: 50
+        type: integer
+        enumValues: []
+        exampleWasSpecified: true
+        nullable: false
+        deprecated: false
+    cleanQueryParameters:
+      start_date: '2024-01-01'
+      end_date: '2024-12-31'
+      per_page: 50
+    bodyParameters: []
+    cleanBodyParameters: []
+    fileParameters: []
+    responses:
+      -
+        custom: []
+        status: 200
+        content: |-
+          {
+            "data": [
+              {
+                "id": 1,
+                "transaction_date": "2024-01-15 10:30:00",
+                "narration": "Transfer",
+                "debit": "5,000.00",
+                "credit": "0.00",
+                "balance_after": "45,000.00"
+              }
+            ]
+          }
+        headers: []
+        description: ''
+    responseFields: []
+    auth: []
+    controller: null
+    method: null
+    route: null

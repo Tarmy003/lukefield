@@ -18,9 +18,30 @@ use Illuminate\Routing\Controller;
 
 class ArchiveRepositoryController extends Controller
 {
+    /**
+     * Access control.
+     *
+     * Previously only four pages checked a permission; the import, clear-data
+     * and log-clearing actions only required a login, so any user could
+     * replace or wipe the archive. Every action is now gated:
+     *  - archive index:      the archive dashboard
+     *  - archive statements: look up accounts and produce statements
+     *  - archive manage:     import data, clear data, import logs (Super Admin only)
+     */
     public function __construct()
     {
-        $this->middleware(['permission:archive index'])->only(['index', 'showAccountImport', 'showTransactionImport', 'viewImportLogs']);
+        $this->middleware(['permission:archive index'])->only(['index']);
+
+        $this->middleware(['permission:archive statements'])->only([
+            'showStatementForm', 'previewStatement', 'exportExcel', 'exportPdf',
+            'searchAccounts', 'getAccountDetails',
+        ]);
+
+        $this->middleware(['permission:archive manage'])->only([
+            'showAccountImport', 'importAccounts',
+            'showTransactionImport', 'importTransactions',
+            'viewImportLogs', 'clearImportLogs', 'clearData',
+        ]);
     }
     /**
      * Display archive repository dashboard

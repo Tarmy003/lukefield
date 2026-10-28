@@ -30,7 +30,7 @@ class ArchiveRepositoryController extends Controller
         $totalAccounts = SavingsAndCurrentAccount::count();
         $totalTransactions = NominalAccountsTrxPostingHistory::count();
         $activeAccounts = SavingsAndCurrentAccount::active()->count();
-        
+
         $accounts = SavingsAndCurrentAccount::with('transactionHistory')
             ->orderBy('created_at', 'desc')
             ->paginate(15);
@@ -54,12 +54,19 @@ class ArchiveRepositoryController extends Controller
 
     /**
      * Import savings and current accounts
+     *
+     * The server default is 30 seconds, which is what stopped the account
+     * import. Large loads should use `php artisan archive:import accounts ...`
+     * from the server shell; this web route is kept for small top-ups.
      */
     public function importAccounts(Request $request)
     {
         $request->validate([
-            'file' => 'required|mimes:xlsx,xls,csv|max:10240',
+            'file' => 'required|mimes:xlsx,xls,csv|max:51200', // 50MB
         ]);
+
+        set_time_limit(0);
+        ini_set('memory_limit', '1024M');
 
         try {
             DB::beginTransaction();
@@ -74,7 +81,7 @@ class ArchiveRepositoryController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Account import error: ' . $e->getMessage());
-            
+
             return redirect()->back()
                 ->with('error', 'Error importing accounts: ' . $e->getMessage());
         }
@@ -86,7 +93,7 @@ class ArchiveRepositoryController extends Controller
     public function showTransactionImport()
     {
         $totalTransactions = NominalAccountsTrxPostingHistory::count();
-        
+
         // Get recent import logs
         $logFile = storage_path('logs/import-transactions.log');
         $recentLogs = '';
@@ -94,7 +101,7 @@ class ArchiveRepositoryController extends Controller
             $logs = file($logFile);
             $recentLogs = implode('', array_slice($logs, -20)); // Last 20 lines
         }
-        
+
         return view('backend.archive.import-transactions', compact('totalTransactions', 'recentLogs'));
     }
 
@@ -105,77 +112,77 @@ class ArchiveRepositoryController extends Controller
     public function importTransactions(Request $request)
     {
         $sessionId = uniqid('import_', true);
-        
+
         $logImport = function($message, $level = 'info') use ($sessionId) {
             $timestamp = now()->format('Y-m-d H:i:s');
             $logMessage = "[{$timestamp}] [{$sessionId}] {$message}";
-            
+
             Storage::disk('local')->append('logs/import-transactions.log', $logMessage);
             Log::channel('single')->{$level}($logMessage);
-            
+
             return $logMessage;
         };
 
         try {
             $logImport("========== NEW IMPORT SESSION STARTED ==========");
-            
+
             // Initial count
             $initialCount = NominalAccountsTrxPostingHistory::count();
             $logImport("Initial transaction count: {$initialCount}");
-            
+
             // Validate file
             $request->validate([
                 'file' => 'required|mimes:xlsx,xls,csv|max:204800', // 200MB max
             ]);
-            
+
             $file = $request->file('file');
             $fileName = $file->getClientOriginalName();
             $fileSize = round($file->getSize() / 1024 / 1024, 2);
-            
+
             $logImport("File: {$fileName} ({$fileSize} MB)");
-            
+
             // CRITICAL: Remove execution time limit (timeout proof)
             set_time_limit(0); // UNLIMITED execution time
             ini_set('max_execution_time', '0'); // UNLIMITED
             ini_set('memory_limit', '2048M'); // 2GB memory
-            
+
             // Disable MySQL strict mode temporarily for better compatibility
             DB::statement("SET SESSION sql_mode=''");
-            
+
             $logImport("PHP limits: Execution time = UNLIMITED, Memory = 2GB");
-            
+
             $startTime = microtime(true);
 
             // **CRITICAL: NO TRANSACTION WRAPPER**
             // Each batch insert will auto-commit immediately
             // This way, if it times out, inserted records stay in database
-            
+
             $logImport("Starting import WITHOUT transaction wrapper (auto-commit mode)");
-            
+
             $import = new NominalAccountsTrxPostingHistoryImport();
-            
+
             try {
                 Excel::import($import, $file);
                 $logImport("Excel import completed successfully");
             } catch (\Exception $e) {
                 $logImport("Excel import encountered error: " . $e->getMessage(), 'error');
-                
+
                 // Even if there's an error, some records may have been inserted
                 // So we don't throw - we continue to get stats
             }
 
             // Get statistics
             $stats = $import->getStats();
-            
+
             // Verify actual database state
             $finalCount = NominalAccountsTrxPostingHistory::count();
             $actualImported = $finalCount - $initialCount;
-            
+
             $logImport("Final count: {$finalCount} | Actually added: {$actualImported}");
-            
+
             $duration = round(microtime(true) - $startTime, 2);
             $memoryUsed = round(memory_get_peak_usage(true) / 1024 / 1024, 2);
-            
+
             $logImport("Duration: {$duration}s | Peak memory: {$memoryUsed} MB");
             $logImport("========== IMPORT SESSION COMPLETED ==========");
 
@@ -189,28 +196,28 @@ class ArchiveRepositoryController extends Controller
             return redirect()->route('archive.import.transactions')
                 ->with('success', $successMessage)
                 ->with('info', "Session ID: {$sessionId} - Check logs for details");
-                
+
         } catch (\Illuminate\Validation\ValidationException $e) {
             $logImport("Validation failed", 'error');
-            
+
             return redirect()->back()
                 ->withErrors($e->errors())
                 ->with('error', 'File validation failed');
-                
+
         } catch (\Exception $e) {
             $logImport("CRITICAL ERROR: " . $e->getMessage(), 'error');
             $logImport("File: " . $e->getFile() . " Line: " . $e->getLine(), 'error');
-            
+
             // Check what actually got imported despite the error
             $currentCount = NominalAccountsTrxPostingHistory::count();
             $logImport("Records in DB after error: {$currentCount}", 'info');
-            
+
             Log::error('Transaction import error', [
                 'session_id' => $sessionId,
                 'file' => $fileName ?? 'unknown',
                 'exception' => $e
             ]);
-            
+
             return redirect()->back()
                 ->with('error', 'Error during import: ' . $e->getMessage())
                 ->with('info', 'Some records may have been imported. Check logs (Session: ' . $sessionId . ')');
@@ -223,15 +230,15 @@ class ArchiveRepositoryController extends Controller
     public function viewImportLogs()
     {
         $logFile = storage_path('logs/import-transactions.log');
-        
+
         $logs = '';
         $logExists = false;
-        
+
         if (file_exists($logFile)) {
             $logs = file_get_contents($logFile);
             $logExists = true;
         }
-        
+
         return view('backend.archive.import-logs', compact('logs', 'logExists'));
     }
 
@@ -241,11 +248,11 @@ class ArchiveRepositoryController extends Controller
     public function clearImportLogs()
     {
         $logFile = storage_path('logs/import-transactions.log');
-        
+
         if (file_exists($logFile)) {
             unlink($logFile);
         }
-        
+
         return redirect()->back()->with('success', 'Import logs cleared successfully');
     }
 
@@ -273,14 +280,8 @@ class ArchiveRepositoryController extends Controller
         ]);
 
         $account = SavingsAndCurrentAccount::where('old_acct_no', $request->account_number)->first();
-        
-        $transactions = NominalAccountsTrxPostingHistory::forAccount($request->account_number)
-            ->dateRange($request->start_date, $request->end_date)
-            ->active()
-            ->orderBy('transaction_date', 'asc')
-            ->orderBy('transaction_order', 'asc') // Use transaction_order for proper ordering
-            ->orderBy('id', 'asc')
-            ->get();
+
+        $transactions = $this->statementTransactions($request);
 
         $startDate = Carbon::parse($request->start_date);
         $endDate = Carbon::parse($request->end_date);
@@ -323,8 +324,8 @@ class ArchiveRepositoryController extends Controller
 
         return Excel::download(
             new StatementOfAccountExport(
-                $request->account_number, 
-                $request->start_date, 
+                $request->account_number,
+                $request->start_date,
                 $request->end_date,
                 $logoPath  // Pass logo path here
             ),
@@ -344,14 +345,8 @@ class ArchiveRepositoryController extends Controller
         ]);
 
         $account = SavingsAndCurrentAccount::where('old_acct_no', $request->account_number)->first();
-        
-        $transactions = NominalAccountsTrxPostingHistory::forAccount($request->account_number)
-            ->dateRange($request->start_date, $request->end_date)
-            ->active()
-            ->orderBy('transaction_date', 'asc')
-            ->orderBy('transaction_order', 'asc') // Use transaction_order for proper ordering
-            ->orderBy('id', 'asc')
-            ->get();
+
+        $transactions = $this->statementTransactions($request);
 
         $startDate = Carbon::parse($request->start_date);
         $endDate = Carbon::parse($request->end_date);
@@ -378,12 +373,33 @@ class ArchiveRepositoryController extends Controller
     }
 
     /**
+     * Transactions for a statement, oldest first.
+     *
+     * transaction_order comes from the BankOne extract, where 1 is the MOST
+     * RECENT posting on the account. It must therefore be sorted descending to
+     * read oldest-to-newest. Sorting it ascending (as before) listed same-day
+     * postings newest-first, so when the first or last day of a statement had
+     * several postings, the opening and closing balances were taken from the
+     * wrong row.
+     */
+    private function statementTransactions(Request $request)
+    {
+        return NominalAccountsTrxPostingHistory::forAccount($request->account_number)
+            ->dateRange($request->start_date, $request->end_date)
+            ->active()
+            ->orderBy('transaction_date', 'asc')
+            ->orderBy('transaction_order', 'desc')
+            ->orderBy('id', 'desc') // file rows are newest-first, so a higher id is an older posting
+            ->get();
+    }
+
+    /**
      * Search accounts via AJAX
      */
     public function searchAccounts(Request $request)
     {
         $search = $request->get('q');
-        
+
         $accounts = SavingsAndCurrentAccount::where('old_acct_no', 'like', "%{$search}%")
             ->orWhere('customerid', 'like', "%{$search}%")
             ->limit(10)
@@ -398,17 +414,17 @@ class ArchiveRepositoryController extends Controller
     public function getAccountDetails($accountNumber)
     {
         $account = SavingsAndCurrentAccount::where('old_acct_no', $accountNumber)->first();
-        
+
         if (!$account) {
             return response()->json(['error' => 'Account not found'], 404);
         }
 
         $transactionCount = NominalAccountsTrxPostingHistory::forAccount($accountNumber)->count();
-        
+
         $firstTransaction = NominalAccountsTrxPostingHistory::forAccount($accountNumber)
             ->orderBy('transaction_date', 'asc')
             ->first();
-            
+
         $lastTransaction = NominalAccountsTrxPostingHistory::forAccount($accountNumber)
             ->orderBy('transaction_date', 'desc')
             ->first();
@@ -451,7 +467,7 @@ class ArchiveRepositoryController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Clear data error: ' . $e->getMessage());
-            
+
             return redirect()->back()->with('error', 'Error clearing data: ' . $e->getMessage());
         }
     }

@@ -124,7 +124,7 @@
 
                                         <!-- Status Filter -->
                                         <select class="form-select" id="statusFilter" onchange="filterUsers()"
-                                            style="width: 150px;">
+                                            style="width: 210px;">
                                             <option value="">All Status</option>
                                             <option value="active" {{ request('status') == 'active' ? 'selected' : '' }}>
                                                 Active</option>
@@ -132,11 +132,17 @@
                                                 Inactive</option>
                                             <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>
                                                 Pending</option>
+                                            <option value="locked" {{ request('status') == 'locked' ? 'selected' : '' }}>
+                                                Locked ({{ $lockedUsers ?? 0 }})</option>
+                                            <option value="password_change" {{ request('status') == 'password_change' ? 'selected' : '' }}>
+                                                Yet to set password ({{ $passwordChangeUsers ?? 0 }})</option>
                                         </select>
 
-                                        <a href="{{ route('users.create') }}" class="btn btn-primary">
-                                            <i class="fas fa-plus me-1"></i>Add User
-                                        </a>
+                                        @can('users create')
+                                            <a href="{{ route('users.create') }}" class="btn btn-primary">
+                                                <i class="fas fa-plus me-1"></i>Add User
+                                            </a>
+                                        @endcan
                                     </div>
                                 </div>
                             </div>
@@ -223,6 +229,12 @@
                                                                 <i class="fas fa-lock"></i> Locked
                                                             </span>
                                                         @endif
+
+                                                        @if ($user->must_change_password || ! $user->password_changed_at)
+                                                            <span class="badge bg-warning-subtle text-warning">
+                                                                <i class="fas fa-key"></i> Must set new password
+                                                            </span>
+                                                        @endif
                                                     </div>
                                                 </td>
 
@@ -250,63 +262,87 @@
                                                                     <i class="fas fa-eye me-2"></i>View Details
                                                                 </a>
                                                             </li>
-                                                            <li>
-                                                                <a class="dropdown-item"
-                                                                    href="{{ route('users.edit', $user) }}">
-                                                                    <i class="fas fa-edit me-2"></i>Edit
-                                                                </a>
-                                                            </li>
-                                                            <li>
-                                                                <hr class="dropdown-divider">
-                                                            </li>
-
-                                                            @if (!$user->email_verified_at)
+                                                            @can('users update')
                                                                 <li>
-                                                                    <a class="dropdown-item text-info" href="#"
-                                                                        onclick="sendWelcomeEmail({{ $user->id }})">
-                                                                        <i class="fas fa-envelope me-2"></i>Send Welcome Email
+                                                                    <a class="dropdown-item"
+                                                                        href="{{ route('users.edit', $user) }}">
+                                                                        <i class="fas fa-edit me-2"></i>Edit
                                                                     </a>
                                                                 </li>
-                                                            @endif
-
-                                                            <li>
-                                                                <a class="dropdown-item" href="#"
-                                                                    onclick="resetPassword({{ $user->id }})">
-                                                                    <i class="fas fa-key me-2"></i>Reset Password
-                                                                </a>
-                                                            </li>
-
-                                                            <li>
-                                                                <hr class="dropdown-divider">
-                                                            </li>
-
-                                                            @if ($user->is_active)
-                                                                <li>
-                                                                    <a class="dropdown-item text-warning" href="#"
-                                                                        onclick="toggleUserStatus({{ $user->id }}, false)">
-                                                                        <i class="fas fa-pause me-2"></i>Deactivate
-                                                                    </a>
-                                                                </li>
-                                                            @else
-                                                                <li>
-                                                                    <a class="dropdown-item text-success" href="#"
-                                                                        onclick="toggleUserStatus({{ $user->id }}, true)">
-                                                                        <i class="fas fa-play me-2"></i>Activate
-                                                                    </a>
-                                                                </li>
-                                                            @endif
-
-                                                            @if ($user->id !== auth()->id())
                                                                 <li>
                                                                     <hr class="dropdown-divider">
                                                                 </li>
+
+                                                                @if (! $user->password_changed_at)
+                                                                    <li>
+                                                                        <a class="dropdown-item text-info" href="#"
+                                                                            onclick="sendWelcomeEmail({{ $user->id }}); return false;">
+                                                                            <i class="fas fa-envelope me-2"></i>Send account setup link
+                                                                        </a>
+                                                                    </li>
+                                                                @endif
+
                                                                 <li>
-                                                                    <a class="dropdown-item text-danger" href="#"
-                                                                        onclick="deleteUser({{ $user->id }})">
-                                                                        <i class="fas fa-trash me-2"></i>Delete
+                                                                    <a class="dropdown-item" href="#"
+                                                                        onclick="resetPassword({{ $user->id }}); return false;">
+                                                                        <i class="fas fa-key me-2"></i>Email password reset link
                                                                     </a>
                                                                 </li>
-                                                            @endif
+
+                                                                @if ($user->isLocked() || $user->failed_login_attempts > 0)
+                                                                    <li>
+                                                                        <a class="dropdown-item text-success" href="#"
+                                                                            onclick="unlockUser({{ $user->id }}); return false;">
+                                                                            <i class="fas fa-unlock me-2"></i>Unlock account
+                                                                        </a>
+                                                                    </li>
+                                                                @endif
+
+                                                                @if (! $user->must_change_password && $user->id !== auth()->id())
+                                                                    <li>
+                                                                        <a class="dropdown-item" href="#"
+                                                                            onclick="requirePasswordChange({{ $user->id }}); return false;">
+                                                                            <i class="fas fa-redo me-2"></i>Require password change
+                                                                        </a>
+                                                                    </li>
+                                                                @endif
+
+                                                                @if ($user->id !== auth()->id())
+                                                                    <li>
+                                                                        <hr class="dropdown-divider">
+                                                                    </li>
+
+                                                                    @if ($user->is_active)
+                                                                        <li>
+                                                                            <a class="dropdown-item text-warning" href="#"
+                                                                                onclick="toggleUserStatus({{ $user->id }}, false); return false;">
+                                                                                <i class="fas fa-pause me-2"></i>Deactivate
+                                                                            </a>
+                                                                        </li>
+                                                                    @else
+                                                                        <li>
+                                                                            <a class="dropdown-item text-success" href="#"
+                                                                                onclick="toggleUserStatus({{ $user->id }}, true); return false;">
+                                                                                <i class="fas fa-play me-2"></i>Activate
+                                                                            </a>
+                                                                        </li>
+                                                                    @endif
+                                                                @endif
+                                                            @endcan
+
+                                                            @can('users delete')
+                                                                @if ($user->id !== auth()->id())
+                                                                    <li>
+                                                                        <hr class="dropdown-divider">
+                                                                    </li>
+                                                                    <li>
+                                                                        <a class="dropdown-item text-danger" href="#"
+                                                                            onclick="deleteUser({{ $user->id }}); return false;">
+                                                                            <i class="fas fa-trash me-2"></i>Delete
+                                                                        </a>
+                                                                    </li>
+                                                                @endif
+                                                            @endcan
                                                         </ul>
                                                     </div>
                                                 </td>
@@ -318,9 +354,11 @@
                                                         <i class="fas fa-users fa-3x text-muted mb-3"></i>
                                                         <h5 class="text-muted">No users found</h5>
                                                         <p class="text-muted">There are no users matching your criteria.</p>
-                                                        <a href="{{ route('users.create') }}" class="btn btn-primary">
-                                                            <i class="fas fa-plus me-1"></i>Add First User
-                                                        </a>
+                                                        @can('users create')
+                                                            <a href="{{ route('users.create') }}" class="btn btn-primary">
+                                                                <i class="fas fa-plus me-1"></i>Add First User
+                                                            </a>
+                                                        @endcan
                                                     </div>
                                                 </td>
                                             </tr>
@@ -385,6 +423,7 @@
             </div>
 
             <!-- Bulk Actions -->
+            @can('users update')
             <div class="row" id="bulkActionsRow" style="display: none;">
                 <div class="col-12">
                     <div class="card">
@@ -401,17 +440,26 @@
                                         <i class="fas fa-pause me-1"></i>Deactivate
                                     </button>
                                     <button class="btn btn-primary btn-sm" onclick="bulkAction('send_welcome')">
-                                        <i class="fas fa-envelope me-1"></i>Send Welcome
+                                        <i class="fas fa-envelope me-1"></i>Email password links
                                     </button>
-                                    <button class="btn btn-danger btn-sm" onclick="bulkAction('delete')">
-                                        <i class="fas fa-trash me-1"></i>Delete
+                                    <button class="btn btn-secondary btn-sm" onclick="bulkAction('require_password_change')">
+                                        <i class="fas fa-redo me-1"></i>Require password change
                                     </button>
+                                    <button class="btn btn-info btn-sm" onclick="bulkAction('unlock')">
+                                        <i class="fas fa-unlock me-1"></i>Unlock
+                                    </button>
+                                    @can('users delete')
+                                        <button class="btn btn-danger btn-sm" onclick="bulkAction('delete')">
+                                            <i class="fas fa-trash me-1"></i>Delete
+                                        </button>
+                                    @endcan
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
+            @endcan
         </div>
     </div>
 
@@ -490,6 +538,9 @@
             const checkboxes = document.querySelectorAll('.user-checkbox:checked');
             const bulkActionsRow = document.getElementById('bulkActionsRow');
             const selectedCount = document.getElementById('selectedCount');
+            if (!bulkActionsRow) {
+                return;
+            }
 
             if (checkboxes.length > 0) {
                 bulkActionsRow.style.display = 'block';
@@ -508,6 +559,7 @@
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
+                            'Accept': 'application/json',
                             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
                         },
                         body: JSON.stringify({
@@ -531,11 +583,12 @@
         }
 
         function sendWelcomeEmail(userId) {
-            if (confirm('Send welcome email with login credentials to this user?')) {
+            if (confirm('Email this user a link to set up their account and choose a password? The link expires in {{ config('security.links.welcome_hours', 24) }} hours.')) {
                 fetch(`/users/${userId}/send-welcome`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
+                            'Accept': 'application/json',
                             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
                         }
                     })
@@ -555,11 +608,12 @@
         }
 
         function resetPassword(userId) {
-            if (confirm('Reset password and send new credentials to user?')) {
+            if (confirm('Email this user a link to choose a new password? Their current password keeps working until they use the link, which expires in {{ config('security.links.reset_minutes', 60) }} minutes.')) {
                 fetch(`/users/${userId}/reset-password`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
+                            'Accept': 'application/json',
                             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
                         }
                     })
@@ -578,12 +632,43 @@
             }
         }
 
+        function postUserAction(userId, action, reload) {
+            return fetch(`/users/${userId}/${action}`, {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    showAlert(data.message || 'Something went wrong.', data.success ? 'success' : 'error');
+                    if (data.success && reload) {
+                        setTimeout(() => window.location.reload(), 1200);
+                    }
+                })
+                .catch(() => showAlert('Something went wrong.', 'error'));
+        }
+
+        function unlockUser(userId) {
+            if (confirm('Unlock this account? Do this only after confirming the person locked themselves out.')) {
+                postUserAction(userId, 'unlock', true);
+            }
+        }
+
+        function requirePasswordChange(userId) {
+            if (confirm('Require this user to set a new password? They will not be able to do anything else until they do.')) {
+                postUserAction(userId, 'require-password-change', true);
+            }
+        }
+
         function deleteUser(userId) {
             if (confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
                 fetch(`/users/${userId}`, {
                         method: 'DELETE',
                         headers: {
                             'Content-Type': 'application/json',
+                            'Accept': 'application/json',
                             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
                         }
                     })
@@ -616,7 +701,9 @@
             const messages = {
                 activate: 'activate selected users',
                 deactivate: 'deactivate selected users',
-                send_welcome: 'send welcome emails to selected users',
+                send_welcome: 'email password links to the selected users',
+                require_password_change: 'require the selected users to set a new password',
+                unlock: 'unlock the selected users',
                 delete: 'delete selected users (this cannot be undone)'
             };
 
@@ -625,6 +712,7 @@
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
+                            'Accept': 'application/json',
                             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
                         },
                         body: JSON.stringify({
@@ -652,10 +740,12 @@
             const alertDiv = document.createElement('div');
             alertDiv.className =
                 `alert alert-${type === 'success' ? 'success' : type === 'warning' ? 'warning' : 'danger'} alert-dismissible fade show`;
-            alertDiv.innerHTML = `
-            ${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        `;
+            alertDiv.textContent = message;
+            const closeButton = document.createElement('button');
+            closeButton.type = 'button';
+            closeButton.className = 'btn-close';
+            closeButton.setAttribute('data-bs-dismiss', 'alert');
+            alertDiv.appendChild(closeButton);
 
             const pageContent = document.querySelector('.page-content .container-xxl');
             pageContent.insertBefore(alertDiv, pageContent.firstChild);

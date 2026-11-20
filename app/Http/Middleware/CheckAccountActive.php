@@ -12,13 +12,18 @@ class CheckAccountActive
 {
     public function handle(Request $request, Closure $next): Response
     {
-        if (Auth::check() && !Auth::user()->is_active) {
+        if (Auth::check() && ! Auth::user()->is_active) {
             Auth::logout();
             $request->session()->invalidate();
             $request->session()->regenerateToken();
 
-            return redirect()->route('login')
-                ->withErrors(['email' => 'Your account has been deactivated.']);
+            $message = 'Your account has been deactivated. Contact the IT Unit.';
+
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $message, 'redirect' => route('login')], 401);
+            }
+
+            return redirect()->route('login')->withErrors(['email' => $message]);
         }
 
         return $next($request);

@@ -20,6 +20,10 @@
                 </div>
             </div>
 
+            @if (session('error'))
+                <div class="alert alert-danger"><i class="fas fa-times-circle me-2"></i>{{ session('error') }}</div>
+            @endif
+
             <form action="{{ route('users.update', $user) }}" method="POST" id="userForm">
                 @csrf
                 @method('PUT')
@@ -73,36 +77,10 @@
                                     </div>
                                 </div>
 
-                                <!-- Password Change Section -->
-                                <div class="row mt-3">
-                                    <div class="col-12">
-                                        <div class="alert alert-info">
-                                            <i class="fas fa-info-circle me-2"></i>
-                                            Leave password fields blank to keep current password
-                                        </div>
-                                    </div>
-
-                                    <div class="col-md-6 mb-3">
-                                        <label for="password" class="form-label">New Password</label>
-                                        <div class="input-group">
-                                            <input type="password"
-                                                class="form-control @error('password') is-invalid @enderror" id="password"
-                                                name="password" placeholder="Enter new password (optional)">
-                                            <button class="btn btn-outline-secondary" type="button" id="togglePassword">
-                                                <i class="fas fa-eye" id="eyeIcon"></i>
-                                            </button>
-                                            @error('password')
-                                                <div class="invalid-feedback">{{ $message }}</div>
-                                            @enderror
-                                        </div>
-                                        <small class="text-muted">Minimum 8 characters</small>
-                                    </div>
-
-                                    <div class="col-md-6 mb-3">
-                                        <label for="password_confirmation" class="form-label">Confirm New Password</label>
-                                        <input type="password" class="form-control" id="password_confirmation"
-                                            name="password_confirmation" placeholder="Confirm new password">
-                                    </div>
+                                <div class="alert alert-info mt-2 mb-0 small">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    Administrators do not set passwords. Use <strong>Email password reset link</strong> on the
+                                    user's details page: they choose their own password, and only they know it.
                                 </div>
                             </div>
                         </div>
@@ -149,6 +127,18 @@
                                         @endif
                                     @endif
 
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Password Last Changed</label>
+                                        <input type="text" class="form-control"
+                                            value="{{ $user->password_changed_at ? $user->password_changed_at->format('M d, Y H:i') : 'Not yet set by the user' }}" disabled>
+                                    </div>
+
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Password Expires</label>
+                                        <input type="text" class="form-control"
+                                            value="{{ $passwordExpiresAt ? $passwordExpiresAt->format('M d, Y') : 'When the user sets a password' }}" disabled>
+                                    </div>
+
                                     @if($user->failed_login_attempts > 0)
                                         <div class="col-md-6 mb-3">
                                             <label class="form-label">Failed Login Attempts</label>
@@ -182,8 +172,12 @@
                                 <!-- Active Status -->
                                 <div class="mb-3">
                                     <div class="form-check form-switch">
+                                        @if ($user->id === auth()->id())
+                                            <input type="hidden" name="is_active" value="1">
+                                        @endif
                                         <input class="form-check-input" type="checkbox" id="is_active" name="is_active"
-                                            value="1" {{ old('is_active', $user->is_active) ? 'checked' : '' }}>
+                                            value="1" {{ old('is_active', $user->is_active) ? 'checked' : '' }}
+                                            {{ $user->id === auth()->id() ? 'disabled' : '' }}>
                                         <label class="form-check-label" for="is_active">
                                             <strong>Active User</strong>
                                             <p class="text-muted small mb-0">User account is active and operational</p>
@@ -191,17 +185,9 @@
                                     </div>
                                 </div>
 
-                                <!-- Two Factor -->
-                                <div class="mb-3">
-                                    <div class="form-check form-switch">
-                                        <input class="form-check-input" type="checkbox" id="two_factor_enabled"
-                                            name="two_factor_enabled" value="1"
-                                            {{ old('two_factor_enabled', $user->two_factor_enabled) ? 'checked' : '' }}>
-                                        <label class="form-check-label" for="two_factor_enabled">
-                                            <strong>Enable 2FA</strong>
-                                            <p class="text-muted small mb-0">Require two-factor authentication</p>
-                                        </label>
-                                    </div>
+                                <div class="small text-muted">
+                                    <i class="fas fa-shield-alt text-success me-1"></i>
+                                    The emailed sign-in code is always required for every user.
                                 </div>
                             </div>
                         </div>
@@ -254,41 +240,5 @@
         </div>
     </div>
 
-    <script>
-        // Toggle password visibility
-        document.getElementById('togglePassword').addEventListener('click', function() {
-            const password = document.getElementById('password');
-            const eyeIcon = document.getElementById('eyeIcon');
 
-            if (password.type === 'password') {
-                password.type = 'text';
-                eyeIcon.classList.remove('fa-eye');
-                eyeIcon.classList.add('fa-eye-slash');
-            } else {
-                password.type = 'password';
-                eyeIcon.classList.remove('fa-eye-slash');
-                eyeIcon.classList.add('fa-eye');
-            }
-        });
-
-        // Form validation
-        document.getElementById('userForm').addEventListener('submit', function(e) {
-            const password = document.getElementById('password').value;
-            const confirmPassword = document.getElementById('password_confirmation').value;
-
-            if (password || confirmPassword) {
-                if (password !== confirmPassword) {
-                    e.preventDefault();
-                    alert('Passwords do not match!');
-                    return false;
-                }
-
-                if (password.length < 8) {
-                    e.preventDefault();
-                    alert('Password must be at least 8 characters long!');
-                    return false;
-                }
-            }
-        });
-    </script>
 @endsection

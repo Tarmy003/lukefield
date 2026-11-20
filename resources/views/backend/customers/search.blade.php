@@ -138,12 +138,14 @@
                             <i class="fas fa-list me-2"></i>Customer List
                         </h5>
                         <div class="d-flex gap-2">
+                            @can('archive manage')
                             <button class="btn btn-sm btn-success" onclick="exportToExcel()">
                                 <i class="fas fa-file-excel me-1"></i>To Excel
                             </button>
                             <button class="btn btn-sm btn-info" onclick="exportToCsv()">
                                 <i class="fas fa-file-csv me-1"></i>To Csv
                             </button>
+                            @endcan
                             <button class="btn btn-sm btn-secondary" onclick="window.print()">
                                 <i class="fas fa-print me-1"></i>Print
                             </button>

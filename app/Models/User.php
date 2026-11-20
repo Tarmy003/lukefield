@@ -29,6 +29,10 @@ class User extends Authenticatable
         'trusted_ips',
     ];
 
+    // must_change_password, password_changed_at, failed_login_attempts and
+    // locked_until are deliberately not mass assignable: they are only set
+    // through PasswordService and the login code.
+
     protected $hidden = [
         'password',
         'remember_token',
@@ -44,6 +48,8 @@ class User extends Authenticatable
             'is_active' => 'boolean',
             'two_factor_enabled' => 'boolean',
             'trusted_ips' => 'array',
+            'password_changed_at' => 'datetime',
+            'must_change_password' => 'boolean',
         ];
     }
 
@@ -67,6 +73,29 @@ class User extends Authenticatable
         return $this->hasMany(LoginHistory::class);
     }
 
+    public function passwordHistories()
+    {
+        return $this->hasMany(PasswordHistory::class);
+    }
+
+    public function passwordSetupTokens()
+    {
+        return $this->hasMany(PasswordSetupToken::class);
+    }
+
+    public function isSuperAdmin(): bool
+    {
+        return $this->hasRole('Super Admin');
+    }
+
+    public function unlock(): void
+    {
+        $this->forceFill([
+            'failed_login_attempts' => 0,
+            'locked_until' => null,
+        ])->save();
+    }
+
     // Security Methods
     public function isLocked(): bool
     {
@@ -84,9 +113,11 @@ class User extends Authenticatable
 
     public function lockAccount(int $minutes = 30): void
     {
-        $this->update([
-            'locked_until' => now()->addMinutes($minutes)
-        ]);
+        // forceFill: locked_until is not mass assignable, so update() would
+        // silently discard it and the account would never actually lock.
+        $this->forceFill([
+            'locked_until' => now()->addMinutes($minutes),
+        ])->save();
         
         activity()
             ->causedBy($this)
@@ -95,10 +126,10 @@ class User extends Authenticatable
 
     public function resetFailedAttempts(): void
     {
-        $this->update([
+        $this->forceFill([
             'failed_login_attempts' => 0,
-            'locked_until' => null
-        ]);
+            'locked_until' => null,
+        ])->save();
     }
 
     public function isTrustedIp(string $ip): bool

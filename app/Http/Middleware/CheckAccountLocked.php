@@ -12,15 +12,24 @@ class CheckAccountLocked
 {
     public function handle(Request $request, Closure $next): Response
     {
-        if (Auth::check() && Auth::user()->isLocked()) {
+        $user = Auth::user();
+
+        if ($user && $user->isLocked()) {
+            // Read the lock time before signing out: after Auth::logout()
+            // there is no user, and the old code crashed here with an error.
+            $remainingMinutes = max(1, (int) ceil(now()->diffInMinutes($user->locked_until)));
+
             Auth::logout();
             $request->session()->invalidate();
             $request->session()->regenerateToken();
 
-            $remainingTime = Auth::user()->locked_until->diffInMinutes(now());
+            $message = "Your account is locked. Try again in {$remainingMinutes} minute(s) or contact the IT Unit.";
 
-            return redirect()->route('login')
-                ->withErrors(['email' => "Your account is locked. Try again in {$remainingTime} minutes."]);
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $message, 'redirect' => route('login')], 401);
+            }
+
+            return redirect()->route('login')->withErrors(['email' => $message]);
         }
 
         return $next($request);

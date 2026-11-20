@@ -2,16 +2,8 @@
 <!DOCTYPE html>
 <html lang="en" dir="ltr" data-startbar="dark" data-bs-theme="light">
 <head>
-    <meta charset="utf-8" />
-    <title>Login - Lukefield Finance Archive</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-    <meta content="Secure Archive Repository System" name="description" />
-    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-
-    <link rel="shortcut icon" href="{{ asset('backend/logo.jpg') }}">
-    <link href="{{ asset('backend/assets/css/bootstrap.min.css') }}" rel="stylesheet" type="text/css" />
-    <link href="{{ asset('backend/assets/css/icons.min.css') }}" rel="stylesheet" type="text/css" />
-    <link href="{{ asset('backend/assets/css/app.min.css') }}" rel="stylesheet" type="text/css" />
+    <title>Sign in - Lukefield Finance Archive</title>
+    @include('auth.partials.head')
 </head>
 
 <body>
@@ -24,99 +16,76 @@
                             <div class="card">
                                 <div class="card-body p-0 bg-white auth-header-box rounded-top">
                                     <div class="text-center p-3">
-                                        <a href="/" class="logo logo-admin">
-                                            <img src="{{ asset('backend/lukefield-logo-removebg-preview.png') }}" 
-                                                 height="50" alt="logo" class="auth-logo">
+                                        <a href="{{ url('/') }}" class="logo logo-admin">
+                                            <img src="{{ asset('backend/lukefield-logo-removebg-preview.png') }}"
+                                                 height="50" alt="Lukefield Finance" class="auth-logo">
                                         </a>
-                                        <h4 class="mt-3 mb-1 fw-semibold text-black fs-18">Secure Archive Login</h4>   
-                                        <p class="text-muted fw-medium mb-0">Enter your credentials to access the system</p>  
+                                        <h4 class="mt-3 mb-1 fw-semibold text-black fs-18">Archive Repository sign in</h4>
+                                        <p class="text-muted fw-medium mb-0">Authorised Lukefield staff only</p>
                                     </div>
                                 </div>
-                                <div class="card-body pt-0">     
+                                <div class="card-body pt-0">
 
-                                    @if (session('success'))
-                                        <div class="alert alert-success alert-dismissible fade show mt-2" role="alert">
-                                            <i class="fas fa-check-circle me-2"></i>{{ session('success') }}
-                                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                                        </div>
-                                    @endif
+                                    @include('auth.partials.alerts')
 
-                                    @if (session('error'))
-                                        <div class="alert alert-danger alert-dismissible fade show mt-2" role="alert">
-                                            <i class="fas fa-exclamation-circle me-2"></i>{{ session('error') }}
-                                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                                        </div>
-                                    @endif
-
-                                    <form method="POST" action="{{ route('login.post') }}" class="my-4">
+                                    <form method="POST" action="{{ route('login.post') }}" class="my-4" autocomplete="on">
                                         @csrf
 
                                         <div class="form-group mb-3">
-                                            <label class="form-label" for="email">
-                                                <i class="fas fa-envelope me-1"></i>Email Address
-                                            </label>
+                                            <label class="form-label" for="email">Email address</label>
                                             <input type="email" name="email" id="email"
                                                 class="form-control @error('email') is-invalid @enderror"
-                                                value="{{ old('email') }}" required autofocus
-                                                placeholder="Enter your email address">
-
+                                                value="{{ old('email') }}" required autofocus autocomplete="username"
+                                                placeholder="you@lukefieldfinance.com">
                                             @error('email')
                                                 <div class="invalid-feedback">{{ $message }}</div>
                                             @enderror
                                         </div>
 
-                                        <div class="form-group mb-3">
-                                            <label class="form-label" for="password">
-                                                <i class="fas fa-lock me-1"></i>Password
-                                            </label>
-                                            <input type="password" name="password" id="password"
-                                                class="form-control @error('password') is-invalid @enderror"
-                                                required placeholder="Enter your password">
-
-                                            @error('password')
-                                                <div class="invalid-feedback">{{ $message }}</div>
-                                            @enderror
-                                        </div>
-
-                                        <div class="form-group row mt-3">
-                                            <div class="col-sm-6">
-                                                <div class="form-check form-switch form-switch-success">
-                                                    <input class="form-check-input" type="checkbox" 
-                                                           id="remember" name="remember">
-                                                    <label class="form-check-label" for="remember">Remember me</label>
-                                                </div>
+                                        <div class="form-group mb-2">
+                                            <label class="form-label" for="password">Password</label>
+                                            <div class="input-group">
+                                                <input type="password" name="password" id="password"
+                                                    class="form-control @error('password') is-invalid @enderror"
+                                                    required autocomplete="current-password" placeholder="Your password">
+                                                <span class="input-group-text toggle-visibility" data-target="password" title="Show or hide password">
+                                                    <i class="fas fa-eye"></i>
+                                                </span>
+                                                @error('password')
+                                                    <div class="invalid-feedback">{{ $message }}</div>
+                                                @enderror
                                             </div>
                                         </div>
 
-                                        <div class="form-group mb-0 row">
-                                            <div class="col-12">
-                                                <div class="d-grid mt-3">
-                                                    <button type="submit" class="btn btn-primary">
-                                                        <i class="fas fa-shield-alt me-2"></i>Proceed to Verification
-                                                    </button>
-                                                </div>
-                                            </div>
+                                        <div class="text-end mb-3">
+                                            <a href="{{ route('password.request') }}" class="small">Forgot your password?</a>
+                                        </div>
+
+                                        <div class="d-grid">
+                                            <button type="submit" class="btn btn-primary">
+                                                <i class="fas fa-shield-alt me-2"></i>Continue
+                                            </button>
                                         </div>
                                     </form>
 
-                                    <div class="alert alert-info mb-2" role="alert">
-                                        <i class="fas fa-info-circle me-2"></i>
-                                        <strong>Security Notice:</strong> A verification code will be sent to your email after credential validation.
+                                    <div class="alert alert-info mb-2 small" role="alert">
+                                        <i class="fas fa-envelope me-2"></i>
+                                        After your password, a 6-digit code is emailed to you. Sessions end after
+                                        {{ config('security.idle_timeout', 15) }} minutes without activity.
                                     </div>
 
-                                    <div class="text-center mb-2">
-                                        <p class="text-muted">
-                                            <i class="fas fa-lock me-1"></i>
-                                            Protected by 2-Factor Authentication
-                                        </p>
-                                    </div>
+                                    <p class="text-muted text-center small mb-2">
+                                        All sign-ins and activity are recorded.
+                                    </p>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>                                        
+        </div>
     </div>
+
+    @include('auth.partials.toggle-script')
 </body>
 </html>

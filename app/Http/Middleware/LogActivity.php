@@ -19,7 +19,6 @@ class LogActivity
 {
     /** GET routes that show customer data and must be logged. */
     private const LOGGED_GET_ROUTES = [
-        'customers.index' => 'Listed customers',
         'customers.search' => 'Searched customers',
         'customers.show' => 'Viewed customer record',
         'customers.export' => 'Exported customer list',
@@ -53,13 +52,13 @@ class LogActivity
     private const KEPT_INPUTS = [
         'account_number', 'accountNumber', 'start_date', 'end_date',
         'search', 'q', 'term', 'customer_name', 'customer_id', 'account_no',
-        'bvn', 'phone', 'email', 'customer_type', 'sex', 'branch', 'pep', 'sector',
+        'bvn', 'phone', 'email', 'customer_type', 'branch', 'pep', 'sector',
         'account_officer', 'format', 'type', 'status', 'action', 'user_ids',
         'date_from', 'date_to',
     ];
 
     /** Search pages are only logged when something was actually searched for. */
-    private const SEARCH_ROUTES = ['customers.index', 'customers.search', 'archive.accounts.search'];
+    private const SEARCH_ROUTES = ['customers.search', 'archive.accounts.search'];
 
     public function handle(Request $request, Closure $next): Response
     {

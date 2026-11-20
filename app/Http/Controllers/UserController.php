@@ -1,35 +1,50 @@
 <?php
+// app/Http/Controllers/UserController.php
 
 namespace App\Http\Controllers;
 
+use App\Models\PasswordSetupToken;
 use App\Models\User;
+use App\Services\PasswordService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
-use Illuminate\Validation\Rules\Password;
-use Spatie\Permission\Models\Role;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+use Spatie\Activitylog\Models\Activity;
+use Spatie\Permission\Models\Role;
+use Throwable;
 
+/**
+ * User administration.
+ *
+ * Administrators never see or choose another person's password. New users and
+ * password resets get a single-use link by email, and the person sets their own
+ * password. Sign-in also needs the emailed code, so a link by email is the only
+ * route that works anyway, and it keeps "who knew the password" out of question.
+ */
 class UserController extends Controller
 {
-    public function __construct()
+    private const SUPER_ADMIN = 'Super Admin';
+
+    public function __construct(private PasswordService $passwords)
     {
-        $this->middleware(['permission:users index'])->only(['index']);
+        // Before this update the status, reset, welcome and bulk actions (and the
+        // details page) had no permission check, so any signed-in user could
+        // deactivate or delete any account.
+        $this->middleware(['permission:users index'])->only(['index', 'show']);
         $this->middleware(['permission:users create'])->only(['create', 'store']);
-        $this->middleware(['permission:users update'])->only(['edit', 'update']);
+        $this->middleware(['permission:users update'])->only([
+            'edit', 'update', 'toggleStatus', 'sendWelcome', 'resetPassword',
+            'unlock', 'requirePasswordChange', 'bulkAction',
+        ]);
         $this->middleware(['permission:users delete'])->only(['destroy']);
     }
-    
 
-    /**
-     * Display a listing of users
-     */
     public function index(Request $request)
     {
-        $query = User::with(['roles'])
-            ->withCount('loginHistories');
+        $query = User::with(['roles'])->withCount('loginHistories');
 
-        // Search functionality
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
@@ -39,7 +54,6 @@ class UserController extends Controller
             });
         }
 
-        // Status filter
         if ($request->filled('status')) {
             switch ($request->status) {
                 case 'active':
@@ -51,324 +65,478 @@ class UserController extends Controller
                 case 'pending':
                     $query->whereNull('email_verified_at');
                     break;
+                case 'locked':
+                    $query->where('locked_until', '>', now());
+                    break;
+                case 'password_change':
+                    $query->where(function ($q) {
+                        $q->where('must_change_password', true)->orWhereNull('password_changed_at');
+                    });
+                    break;
             }
         }
 
-        // Pagination
-        $perPage = $request->get('per_page', 15);
+        $perPage = (int) $request->get('per_page', 15);
+        $perPage = in_array($perPage, [10, 15, 25, 50, 100], true) ? $perPage : 15;
+
         $users = $query->latest()->paginate($perPage)->withQueryString();
 
-        // Stats
         $totalUsers = User::count();
         $activeUsers = User::where('is_active', true)->count();
         $pendingUsers = User::whereNull('email_verified_at')->count();
         $inactiveUsers = User::where('is_active', false)->count();
+        $lockedUsers = User::where('locked_until', '>', now())->count();
+        $passwordChangeUsers = User::where(function ($q) {
+            $q->where('must_change_password', true)->orWhereNull('password_changed_at');
+        })->count();
 
         return view('backend.users.index', compact(
             'users',
             'totalUsers',
             'activeUsers',
             'pendingUsers',
-            'inactiveUsers'
+            'inactiveUsers',
+            'lockedUsers',
+            'passwordChangeUsers'
         ));
     }
 
-    /**
-     * Show the form for creating a new user
-     */
     public function create()
     {
-        $roles = Role::orderBy('name')->get();
-        
+        $roles = $this->assignableRoles();
+
         return view('backend.users.create', compact('roles'));
     }
 
-    /**
-     * Store a newly created user
-     */
     public function store(Request $request)
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
+            'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users', 'email')],
             'phone' => ['nullable', 'string', 'max:20'],
-            'password' => ['required', 'string', 'min:8', 'confirmed'],
             'is_active' => ['boolean'],
             'two_factor_enabled' => ['boolean'],
+            'send_welcome' => ['boolean'],
             'roles' => ['nullable', 'array'],
-            'roles.*' => ['exists:roles,id'],
+            'roles.*' => [Rule::in($this->assignableRoles()->pluck('id')->all())],
         ]);
 
-        // Prepare user data
-        $userData = [
+        $user = User::create([
             'name' => $validated['name'],
-            'email' => $validated['email'],
+            'email' => Str::lower($validated['email']),
             'phone' => $validated['phone'] ?? null,
-            'password' => Hash::make($validated['password']),
+            // A random password nobody knows; the user sets their own from the link.
+            'password' => Str::password(40),
             'is_active' => $request->boolean('is_active', true),
-            'two_factor_enabled' => $request->boolean('two_factor_enabled', false),
-        ];
+            'two_factor_enabled' => true,
+        ]);
 
-        // Create user
-        $user = User::create($userData);
+        $user->forceFill(['must_change_password' => true])->save();
 
-        // Assign roles
         if ($request->filled('roles')) {
-            $user->syncRoles($request->roles);
+            $user->syncRoles(Role::whereIn('id', $request->roles)->get());
         }
 
-        // Log activity
         activity()
             ->causedBy(auth()->user())
             ->performedOn($user)
-            ->withProperties(['ip' => request()->ip()])
+            ->withProperties([
+                'ip' => request()->ip(),
+                'roles' => $user->getRoleNames()->all(),
+            ])
             ->log('User created');
 
-        return redirect()
-            ->route('users.index')
-            ->with('success', 'User created successfully!');
+        $message = 'User created.';
+
+        if ($request->boolean('send_welcome', true) && $user->is_active) {
+            try {
+                $this->passwords->issueLink($user, PasswordSetupToken::PURPOSE_WELCOME, auth()->user());
+                $message .= ' An account setup link has been emailed to '.$user->email.'.';
+            } catch (Throwable $e) {
+                return redirect()
+                    ->route('users.show', $user)
+                    ->with('error', 'User created, but the setup email could not be sent. Check the mail settings on System Health, then use "Send account setup link".');
+            }
+        }
+
+        return redirect()->route('users.show', $user)->with('success', $message);
     }
 
-    /**
-     * Display the specified user
-     */
     public function show(User $user)
     {
         $user->load(['roles', 'loginHistories' => function ($query) {
-            $query->latest()->limit(10);
+            $query->latest('logged_in_at')->limit(10);
         }]);
 
-        // Get user activities
-        $activities = activity()
-            ->causedBy($user)
-            ->orWhere('subject_id', $user->id)
-            ->orWhere('causer_id', $user->id)
+        // Actions by this user and actions on this user.
+        $activities = Activity::query()
+            ->where(function ($q) use ($user) {
+                $q->where(function ($q) use ($user) {
+                    $q->where('causer_type', $user->getMorphClass())->where('causer_id', $user->id);
+                })->orWhere(function ($q) use ($user) {
+                    $q->where('subject_type', $user->getMorphClass())->where('subject_id', $user->id);
+                });
+            })
+            ->with('causer')
             ->latest()
             ->limit(20)
             ->get();
 
-        return view('backend.users.show', compact('user', 'activities'));
+        $passwordExpiresAt = $this->passwords->expiresAt($user);
+        $passwordChangeReason = $this->passwords->changeRequiredReason($user);
+        $pendingLink = $user->passwordSetupTokens()
+            ->whereNull('used_at')
+            ->where('expires_at', '>', now())
+            ->latest()
+            ->first();
+
+        return view('backend.users.show', compact(
+            'user',
+            'activities',
+            'passwordExpiresAt',
+            'passwordChangeReason',
+            'pendingLink'
+        ));
     }
 
-    /**
-     * Show the form for editing the specified user
-     */
     public function edit(User $user)
     {
-        $roles = Role::orderBy('name')->get();
+        $roles = $this->assignableRoles();
         $userRoles = $user->roles->pluck('id')->toArray();
+        $passwordExpiresAt = $this->passwords->expiresAt($user);
 
-        return view('backend.users.edit', compact('user', 'roles', 'userRoles'));
+        return view('backend.users.edit', compact('user', 'roles', 'userRoles', 'passwordExpiresAt'));
     }
 
-    /**
-     * Update the specified user
-     */
     public function update(Request $request, User $user)
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email,' . $user->id],
+            'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
             'phone' => ['nullable', 'string', 'max:20'],
             'is_active' => ['boolean'],
-            'two_factor_enabled' => ['boolean'],
             'roles' => ['nullable', 'array'],
             'roles.*' => ['exists:roles,id'],
         ]);
 
-        // Prepare update data
-        $updateData = [
-            'name' => $validated['name'],
-            'email' => $validated['email'],
-            'phone' => $validated['phone'] ?? null,
-            'is_active' => $request->boolean('is_active'),
-            'two_factor_enabled' => $request->boolean('two_factor_enabled'),
-        ];
+        $isSelf = $user->id === auth()->id();
+        $newRoles = Role::whereIn('id', $request->input('roles', []))->get();
+        $oldRoleNames = $user->getRoleNames()->all();
 
-        // Update user
-        $user->update($updateData);
-
-        // Sync roles
-        if ($request->has('roles')) {
-            $user->syncRoles($request->roles ?? []);
+        // Only a Super Admin may give or take away the Super Admin role.
+        $superAdminChanging = in_array(self::SUPER_ADMIN, $oldRoleNames, true)
+            !== $newRoles->contains('name', self::SUPER_ADMIN);
+        if ($superAdminChanging && ! auth()->user()->isSuperAdmin()) {
+            return back()->withInput()->with('error', 'Only a Super Admin can give or remove the Super Admin role.');
         }
 
-        // Log activity
+        if ($isSelf && ! $request->boolean('is_active')) {
+            return back()->withInput()->with('error', 'You cannot deactivate your own account.');
+        }
+
+        if ($isSelf && in_array(self::SUPER_ADMIN, $oldRoleNames, true) && ! $newRoles->contains('name', self::SUPER_ADMIN)) {
+            return back()->withInput()->with('error', 'You cannot remove the Super Admin role from yourself.');
+        }
+
+        $emailChanged = Str::lower($validated['email']) !== Str::lower($user->email);
+
+        $user->update([
+            'name' => $validated['name'],
+            'email' => Str::lower($validated['email']),
+            'phone' => $validated['phone'] ?? null,
+            'is_active' => $request->boolean('is_active'),
+            // The emailed sign-in code is always required; this flag is kept on.
+            'two_factor_enabled' => true,
+        ]);
+
+        if ($emailChanged) {
+            // The new address has not been proven yet, and any link sent to
+            // the old address must stop working.
+            $user->forceFill(['email_verified_at' => null])->save();
+            $user->passwordSetupTokens()->whereNull('used_at')->delete();
+        }
+
+        $user->syncRoles($newRoles);
+
+        if (! $user->is_active) {
+            $this->passwords->endOtherSessions($user);
+        }
+
         activity()
             ->causedBy(auth()->user())
             ->performedOn($user)
-            ->withProperties(['ip' => request()->ip()])
+            ->withProperties([
+                'ip' => request()->ip(),
+                'roles_before' => $oldRoleNames,
+                'roles_after' => $user->getRoleNames()->all(),
+                'email_changed' => $emailChanged,
+            ])
             ->log('User updated');
 
         return redirect()
             ->route('users.show', $user)
-            ->with('success', 'User updated successfully!');
+            ->with('success', 'User updated.');
     }
 
-    /**
-     * Remove the specified user
-     */
-    public function destroy(User $user)
+    public function destroy(User $user): JsonResponse
     {
-        // Prevent self-deletion
         if ($user->id === auth()->id()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'You cannot delete your own account.'
-            ], 403);
+            return $this->jsonError('You cannot delete your own account.', 403);
         }
 
-        // Log activity before deletion
+        if ($error = $this->superAdminGuard(collect([$user]))) {
+            return $this->jsonError($error, 403);
+        }
+
         activity()
             ->causedBy(auth()->user())
             ->performedOn($user)
-            ->withProperties(['user_data' => $user->toArray()])
+            ->withProperties([
+                'ip' => request()->ip(),
+                'user' => $user->only(['id', 'name', 'email']),
+                'roles' => $user->getRoleNames()->all(),
+            ])
             ->log('User deleted');
 
-        // Soft delete user
+        $this->passwords->endOtherSessions($user);
         $user->delete();
 
-        return response()->json([
-            'success' => true,
-            'message' => 'User deleted successfully!'
-        ]);
+        return response()->json(['success' => true, 'message' => 'User deleted.']);
     }
 
-    /**
-     * Toggle user active status
-     */
-    public function toggleStatus(Request $request, User $user)
+    public function toggleStatus(Request $request, User $user): JsonResponse
     {
         $isActive = $request->boolean('is_active');
-        
+
+        if (! $isActive && $user->id === auth()->id()) {
+            return $this->jsonError('You cannot deactivate your own account.', 403);
+        }
+
+        if (! $isActive && ($error = $this->superAdminGuard(collect([$user])))) {
+            return $this->jsonError($error, 403);
+        }
+
         $user->update(['is_active' => $isActive]);
+
+        if (! $isActive) {
+            $this->passwords->endOtherSessions($user);
+            $user->passwordSetupTokens()->whereNull('used_at')->delete();
+        }
 
         activity()
             ->causedBy(auth()->user())
             ->performedOn($user)
-            ->withProperties(['is_active' => $isActive])
+            ->withProperties(['is_active' => $isActive, 'ip' => request()->ip()])
             ->log($isActive ? 'User activated' : 'User deactivated');
 
         return response()->json([
             'success' => true,
-            'message' => $isActive ? 'User activated successfully!' : 'User deactivated successfully!'
+            'message' => $isActive ? 'User activated.' : 'User deactivated and signed out.',
         ]);
     }
 
     /**
-     * Send welcome email to user
+     * Email an account setup link (24 hours) to a user who has not set a password yet.
      */
-    public function sendWelcome(User $user)
+    public function sendWelcome(User $user): JsonResponse
     {
-        // Generate new password
-        $password = Str::random(12);
-        $user->update(['password' => Hash::make($password)]);
+        return $this->sendLink($user, PasswordSetupToken::PURPOSE_WELCOME);
+    }
 
-        // TODO: Send welcome email with credentials
-        // Mail::to($user->email)->send(new WelcomeEmail($user, $password));
+    /**
+     * Email a password reset link (60 minutes). The current password keeps
+     * working until the user sets a new one.
+     */
+    public function resetPassword(User $user): JsonResponse
+    {
+        return $this->sendLink($user, PasswordSetupToken::PURPOSE_RESET);
+    }
+
+    public function unlock(User $user): JsonResponse
+    {
+        $user->unlock();
 
         activity()
             ->causedBy(auth()->user())
             ->performedOn($user)
-            ->log('Welcome email sent');
+            ->withProperties(['ip' => request()->ip()])
+            ->log('Account unlocked');
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Welcome email sent successfully!'
-        ]);
+        return response()->json(['success' => true, 'message' => $user->name.' has been unlocked.']);
     }
 
-    /**
-     * Reset user password
-     */
-    public function resetPassword(User $user)
+    public function requirePasswordChange(User $user): JsonResponse
     {
-        // Generate new password
-        $password = Str::random(12);
-        $user->update(['password' => Hash::make($password)]);
-
-        // TODO: Send password reset email
-        // Mail::to($user->email)->send(new PasswordResetEmail($user, $password));
+        $user->forceFill(['must_change_password' => true])->save();
 
         activity()
             ->causedBy(auth()->user())
             ->performedOn($user)
-            ->log('Password reset');
+            ->withProperties(['ip' => request()->ip()])
+            ->log('Password change required at next sign-in');
 
         return response()->json([
             'success' => true,
-            'message' => 'Password reset successfully! Email sent to user.'
+            'message' => $user->name.' must set a new password before doing anything else.',
         ]);
     }
 
-    /**
-     * Bulk actions
-     */
-    public function bulkAction(Request $request)
+    public function bulkAction(Request $request): JsonResponse
     {
         $request->validate([
-            'action' => ['required', 'in:activate,deactivate,enable_login,disable_login,send_welcome,delete'],
+            'action' => ['required', 'in:activate,deactivate,send_welcome,require_password_change,unlock,delete'],
             'user_ids' => ['required', 'array', 'min:1'],
             'user_ids.*' => ['exists:users,id'],
         ]);
 
-        $userIds = $request->user_ids;
-        
-        // Prevent acting on own account
-        $userIds = array_filter($userIds, fn($id) => $id != auth()->id());
-
-        if (empty($userIds)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Cannot perform bulk actions on your own account.'
-            ], 403);
+        if ($request->action === 'delete' && ! auth()->user()->can('users delete')) {
+            return $this->jsonError('You do not have permission to delete users.', 403);
         }
 
-        $count = count($userIds);
+        $userIds = collect($request->user_ids)->map(fn ($id) => (int) $id)->reject(fn ($id) => $id === auth()->id())->values();
+
+        if ($userIds->isEmpty()) {
+            return $this->jsonError('Select at least one user other than yourself.', 403);
+        }
+
+        $users = User::whereIn('id', $userIds)->get();
+        $count = $users->count();
+
+        if (in_array($request->action, ['deactivate', 'delete'], true) && ($error = $this->superAdminGuard($users))) {
+            return $this->jsonError($error, 403);
+        }
+
+        $failed = [];
 
         switch ($request->action) {
             case 'activate':
                 User::whereIn('id', $userIds)->update(['is_active' => true]);
-                $message = "{$count} user(s) activated successfully!";
+                $message = "{$count} user(s) activated.";
                 break;
 
             case 'deactivate':
                 User::whereIn('id', $userIds)->update(['is_active' => false]);
-                $message = "{$count} user(s) deactivated successfully!";
+                $users->each(fn (User $u) => $this->passwords->endOtherSessions($u));
+                $message = "{$count} user(s) deactivated and signed out.";
                 break;
 
             case 'send_welcome':
-                foreach (User::whereIn('id', $userIds)->get() as $user) {
-                    // TODO: Send welcome email
+                foreach ($users as $user) {
+                    if (! $user->is_active) {
+                        $failed[] = $user->name.' (inactive)';
+                        continue;
+                    }
+                    $purpose = $user->password_changed_at === null
+                        ? PasswordSetupToken::PURPOSE_WELCOME
+                        : PasswordSetupToken::PURPOSE_RESET;
+                    try {
+                        $this->passwords->issueLink($user, $purpose, auth()->user());
+                    } catch (Throwable $e) {
+                        $failed[] = $user->name;
+                    }
                 }
-                $message = "Welcome emails sent to {$count} user(s)!";
+                $sent = $count - count($failed);
+                $message = "Password links emailed to {$sent} user(s).";
+                break;
+
+            case 'require_password_change':
+                User::whereIn('id', $userIds)->update(['must_change_password' => true]);
+                $message = "{$count} user(s) must set a new password at their next action.";
+                break;
+
+            case 'unlock':
+                User::whereIn('id', $userIds)->update(['failed_login_attempts' => 0, 'locked_until' => null]);
+                $message = "{$count} user(s) unlocked.";
                 break;
 
             case 'delete':
+                $users->each(fn (User $u) => $this->passwords->endOtherSessions($u));
                 User::whereIn('id', $userIds)->delete();
-                $message = "{$count} user(s) deleted successfully!";
+                $message = "{$count} user(s) deleted.";
                 break;
 
             default:
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Invalid action.'
-                ], 400);
+                return $this->jsonError('Invalid action.', 400);
         }
 
-        // Log bulk activity
         activity()
             ->causedBy(auth()->user())
             ->withProperties([
                 'action' => $request->action,
-                'user_ids' => $userIds,
-                'count' => $count
+                'user_ids' => $userIds->all(),
+                'users' => $users->pluck('email')->all(),
+                'failed' => $failed,
+                'ip' => request()->ip(),
             ])
-            ->log('Bulk user action performed');
+            ->log('Bulk user action: '.$request->action);
+
+        if ($failed !== []) {
+            $message .= ' Not sent: '.implode(', ', $failed).'.';
+        }
+
+        return response()->json(['success' => true, 'message' => $message]);
+    }
+
+    private function sendLink(User $user, string $purpose): JsonResponse
+    {
+        if (! $user->is_active) {
+            return $this->jsonError('Activate this user before sending a link.', 422);
+        }
+
+        try {
+            $token = $this->passwords->issueLink($user, $purpose, auth()->user());
+        } catch (Throwable $e) {
+            return $this->jsonError('The email could not be sent. Check the mail settings on System Health.', 500);
+        }
+
+        $validity = $purpose === PasswordSetupToken::PURPOSE_WELCOME
+            ? config('security.links.welcome_hours', 24).' hours'
+            : config('security.links.reset_minutes', 60).' minutes';
 
         return response()->json([
             'success' => true,
-            'message' => $message
+            'message' => ($purpose === PasswordSetupToken::PURPOSE_WELCOME ? 'Account setup link' : 'Password reset link')
+                ." emailed to {$user->email}. It works once and expires in {$validity}.",
+            'expires_at' => $token->expires_at->toIso8601String(),
         ]);
+    }
+
+    /**
+     * Stops anyone deactivating or deleting every active Super Admin, which
+     * would leave nobody able to manage the system.
+     */
+    private function superAdminGuard($users): ?string
+    {
+        $targets = $users->filter(fn (User $u) => $u->hasRole(self::SUPER_ADMIN));
+
+        if ($targets->isEmpty()) {
+            return null;
+        }
+
+        if (! auth()->user()->isSuperAdmin()) {
+            return 'Only a Super Admin can deactivate or delete a Super Admin.';
+        }
+
+        $remaining = User::role(self::SUPER_ADMIN)
+            ->where('is_active', true)
+            ->whereNotIn('id', $targets->pluck('id'))
+            ->count();
+
+        return $remaining === 0 ? 'At least one active Super Admin must remain.' : null;
+    }
+
+    /**
+     * Only a Super Admin sees the Super Admin role as an option.
+     */
+    private function assignableRoles()
+    {
+        return Role::orderBy('name')
+            ->when(! auth()->user()->isSuperAdmin(), fn ($q) => $q->where('name', '!=', self::SUPER_ADMIN))
+            ->get();
+    }
+
+    private function jsonError(string $message, int $status): JsonResponse
+    {
+        return response()->json(['success' => false, 'message' => $message], $status);
     }
 }

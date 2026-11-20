@@ -932,4 +932,4 @@ function animateNumber(element, start, end, duration) {
     });
 @endif
 </script>
-@endpushDa
+@endpush

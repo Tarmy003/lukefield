@@ -20,6 +20,10 @@
                 </div>
             </div>
 
+            @if ($errors->has('roles.*'))
+                <div class="alert alert-danger">You cannot assign one of the selected roles.</div>
+            @endif
+
             <form action="{{ route('users.store') }}" method="POST" id="userForm">
                 @csrf
 
@@ -71,33 +75,13 @@
                                         @enderror
                                     </div>
 
-                                    <!-- Password -->
-                                    <div class="col-md-6 mb-3">
-                                        <label for="password" class="form-label">
-                                            Password <span class="text-danger">*</span>
-                                        </label>
-                                        <div class="input-group">
-                                            <input type="password"
-                                                class="form-control @error('password') is-invalid @enderror" id="password"
-                                                name="password" required placeholder="Enter password">
-                                            <button class="btn btn-outline-secondary" type="button" id="togglePassword">
-                                                <i class="fas fa-eye" id="eyeIcon"></i>
-                                            </button>
-                                            @error('password')
-                                                <div class="invalid-feedback">{{ $message }}</div>
-                                            @enderror
-                                        </div>
-                                        <small class="text-muted">Minimum 8 characters</small>
-                                    </div>
+                                </div>
 
-                                    <!-- Confirm Password -->
-                                    <div class="col-md-6 mb-3">
-                                        <label for="password_confirmation" class="form-label">
-                                            Confirm Password <span class="text-danger">*</span>
-                                        </label>
-                                        <input type="password" class="form-control" id="password_confirmation"
-                                            name="password_confirmation" required placeholder="Confirm password">
-                                    </div>
+                                <div class="alert alert-info small mb-0">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    You do not set a password for the new user. They receive an email with a
+                                    single-use link (valid {{ config('security.links.welcome_hours', 24) }} hours) to choose their own,
+                                    so only they ever know it.
                                 </div>
                             </div>
                         </div>
@@ -125,17 +109,23 @@
                                     </div>
                                 </div>
 
-                                <!-- Two Factor -->
+                                <!-- Setup email -->
                                 <div class="mb-3">
                                     <div class="form-check form-switch">
-                                        <input class="form-check-input" type="checkbox" id="two_factor_enabled"
-                                            name="two_factor_enabled" value="1"
-                                            {{ old('two_factor_enabled', true) ? 'checked' : '' }}>
-                                        <label class="form-check-label" for="two_factor_enabled">
-                                            <strong>Enable 2FA</strong>
-                                            <p class="text-muted small mb-0">Require two-factor authentication</p>
+                                        <input type="hidden" name="send_welcome" value="0">
+                                        <input class="form-check-input" type="checkbox" id="send_welcome"
+                                            name="send_welcome" value="1"
+                                            {{ old('send_welcome', true) ? 'checked' : '' }}>
+                                        <label class="form-check-label" for="send_welcome">
+                                            <strong>Email the account setup link now</strong>
+                                            <p class="text-muted small mb-0">Untick to send it later from the user's page</p>
                                         </label>
                                     </div>
+                                </div>
+
+                                <div class="small text-muted">
+                                    <i class="fas fa-shield-alt text-success me-1"></i>
+                                    The emailed sign-in code is always required for every user.
                                 </div>
                             </div>
                         </div>
@@ -185,39 +175,5 @@
         </div>
     </div>
 
-    <script>
-        // Toggle password visibility
-        document.getElementById('togglePassword').addEventListener('click', function() {
-            const password = document.getElementById('password');
-            const eyeIcon = document.getElementById('eyeIcon');
 
-            if (password.type === 'password') {
-                password.type = 'text';
-                eyeIcon.classList.remove('fa-eye');
-                eyeIcon.classList.add('fa-eye-slash');
-            } else {
-                password.type = 'password';
-                eyeIcon.classList.remove('fa-eye-slash');
-                eyeIcon.classList.add('fa-eye');
-            }
-        });
-
-        // Form validation
-        document.getElementById('userForm').addEventListener('submit', function(e) {
-            const password = document.getElementById('password').value;
-            const confirmPassword = document.getElementById('password_confirmation').value;
-
-            if (password !== confirmPassword) {
-                e.preventDefault();
-                alert('Passwords do not match!');
-                return false;
-            }
-
-            if (password.length < 8) {
-                e.preventDefault();
-                alert('Password must be at least 8 characters long!');
-                return false;
-            }
-        });
-    </script>
 @endsection

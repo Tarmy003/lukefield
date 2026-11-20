@@ -117,9 +117,11 @@
                                             <i class="fas fa-filter me-1"></i> Filters
                                         </button>
                                         
-                                        <a href="{{ route('customers.import.form') }}" class="btn btn-sm btn-info">
-                                            <i class="fas fa-upload me-1"></i> Import
-                                        </a>
+                                        @can('archive manage')
+                                            <a href="{{ route('customers.import.form') }}" class="btn btn-sm btn-info">
+                                                <i class="fas fa-upload me-1"></i> Import
+                                            </a>
+                                        @endcan
                                         
                                     </div>
                                 </div>
@@ -267,15 +269,14 @@
                                                         <p>Try adjusting your search or filters</p>
                                                         <a href="{{ route('customers.index') }}" class="btn btn-sm btn-primary">Clear Filters</a>
                                                     @else
-                                                        <p>Get started by importing customers or adding a new one</p>
-                                                        <div class="d-flex gap-2 justify-content-center mt-3">
-                                                            <a href="{{ route('customers.import.form') }}" class="btn btn-sm btn-info">
-                                                                <i class="fas fa-upload me-1"></i> Import Customers
-                                                            </a>
-                                                            <a href="{{ route('customers.create') }}" class="btn btn-sm btn-primary">
-                                                                <i class="fas fa-plus me-1"></i> Add Customer
-                                                            </a>
-                                                        </div>
+                                                        <p>No customer records have been imported yet.</p>
+                                                        @can('archive manage')
+                                                            <div class="d-flex gap-2 justify-content-center mt-3">
+                                                                <a href="{{ route('customers.import.form') }}" class="btn btn-sm btn-info">
+                                                                    <i class="fas fa-upload me-1"></i> Import Customers
+                                                                </a>
+                                                            </div>
+                                                        @endcan
                                                     @endif
                                                 </td>
                                             </tr>

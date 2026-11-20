@@ -122,6 +122,10 @@ Route::middleware(['auth', 'account.active', 'account.locked', 'log.activity'])-
     // Customers. CustomerController checks search and show; editing, the
     // full export, the import and the debug page are for "archive manage".
     Route::prefix('customers')->name('customers.')->group(function () {
+        // Customer list (added on the server). The controller does not check
+        // a permission for it, so it is checked here, same as the search page.
+        Route::get('/', [CustomerController::class, 'index'])
+            ->middleware('permission:customers search')->name('index');
         Route::get('/search', [CustomerController::class, 'search'])->name('search');
 
         Route::middleware('permission:archive manage')->group(function () {
